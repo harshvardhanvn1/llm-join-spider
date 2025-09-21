@@ -50,9 +50,21 @@ def main(spider_dir: str, pairs: str, method: str, threshold: float, limit: int,
     for it in items:
         db_path = _db_file(spider_dir, it["db_id"])
         res = predict(db_path, it["left_table"], it["left_column"], it["right_table"], it["right_column"], threshold=threshold)
-        y_true.append(int(it["label"]))
-        y_pred.append(int(res["label"]))
-        preds.append({**it, **res})
+        gt = int(it["label"])
+        pr = int(res["label"])
+        y_true.append(gt)
+        y_pred.append(pr)
+        rec = {
+            **it,
+            "gt_label": gt,          # keep gold explicitly
+            **res,
+            "pred_label": pr         # keep pred explicitly
+        }
+        # (remove any conflicting 'label' keys if present)
+        if "label" in rec and "gt_label" in rec and "pred_label" in rec:
+            del rec["label"]
+        preds.append(rec)
+
 
     # metrics + outputs
     m = _metrics(y_true, y_pred)
