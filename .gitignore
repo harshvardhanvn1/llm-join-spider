@@ -2,5 +2,5 @@
 __pycache__/
 *.py[cod]
 *.DS_Store
-runs/
-data/
+/runs/
+/data/
