@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: joinbench
+Version: 0.1.0
+Summary: Spider-only join discovery baselines + evaluation
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: click>=8.1.7
+
+# LLM-Join-Spider (Spider-only baseline)
+
+Find potential SQL joins on Spider. Step 1 builds FK-based gold pairs (positives) and adds same-DB negatives.
+Step 2 runs baselines (Jaccard/Containment) directly on Spider SQLite DBs.
+
+## Quickstart
+```bash
+pip install -e .
+python -m joinbench.pipelines.build_spider_pairs \
+  --spider-dir /ABS/PATH/TO/spider \
+  --out data/benchmarks/spider_pairs.jsonl \
+  --negatives-per-pos 1
