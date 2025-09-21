@@ -3,7 +3,7 @@ import json, time
 from pathlib import Path
 import click
 
-from joinbench.methods import jaccard_sqlite, containment_sqlite
+from src.joinbench.methods import jaccard_sqlite, containment_sqlite
 
 def _db_file(spider_dir: str, db_id: str) -> str:
     p = Path(spider_dir) / "database" / db_id / f"{db_id}.sqlite"
