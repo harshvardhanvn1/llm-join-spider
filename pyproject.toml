@@ -1,18 +1,33 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "joinbench"
+name = "llm-join-spider"
 version = "0.1.0"
-description = "Spider-only join discovery baselines + evaluation"
+description = "Benchmarks for discovering SQL join keys on Spider: value-overlap baselines and query-conditioned LLMs (Gemini)."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{ name = "Harshvardhan" }]
+keywords = ["nlp", "databases", "sql", "joins", "spider", "llm", "benchmark"]
+
 dependencies = [
   "pandas>=2.0",
   "numpy>=1.24",
   "click>=8.1.7",
-  "tabulate>=0.9"
+  "tabulate>=0.9",
+  "sqlglot>=23.0",              
+  "python-dotenv>=1.0",         
+  "google-generativeai>=0.7",   
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.4",
+  "isort>=5.13",
+  "ruff>=0.5",
+  "mypy>=1.10",
 ]
 
 [tool.setuptools]
@@ -20,4 +35,22 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-# add tabulate for CLI tables
+include = ["joinbench*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310","py311","py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E","F","I","UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+ignore_missing_imports = true
