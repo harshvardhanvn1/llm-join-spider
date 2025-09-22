@@ -11,9 +11,9 @@ This repo provides clean CLIs to:
 2) Run baselines and LLMs (schema-only + query-conditioned)  
 3) Analyze failures and summarize results
 
-> ✅ Works with Spider SQLite DBs  
-> ✅ Robust to non-UTF8 text values in Spider  
-> ✅ Paces Gemini calls (supports `gemini-2.0-flash-lite`)
+> Works with Spider SQLite DBs  
+> Robust to non-UTF8 text values in Spider  
+> Paces Gemini calls (supports `gemini-2.0-flash-lite`)
 
 ---
 
