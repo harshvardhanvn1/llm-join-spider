@@ -96,26 +96,43 @@ def _normalize_value(v) -> str | None:
     s = str(v).strip().lower()
     return s if s != "" else None
 
-def load_column_values_sqlite(db_path: str, table: str, column: str, sample_limit: int = 50000) -> Set[str]:
+def load_column_values_sqlite(db_path: str, table: str, column: str, sample_limit: int = 0) -> List[str]:
     """
-    Load DISTINCT values from a table.column (quoted safely).
-    Returns a normalized set of strings (lowercased, trimmed).
+    Return DISTINCT non-null values from table.column.
+    Robust to non-UTF8 bytes stored in TEXT: fetch as bytes, then decode per value.
     """
     con = sqlite3.connect(db_path)
     try:
+        # Fetch raw bytes so we control decoding
+        con.text_factory = bytes
         cur = con.cursor()
-        t = quote_ident(table)
-        c = quote_ident(column)
-        cur.execute(f"SELECT DISTINCT {c} FROM {t} LIMIT {sample_limit}")
+        q = f"""SELECT DISTINCT {quote_ident(column)} FROM {quote_ident(table)} WHERE {quote_ident(column)} IS NOT NULL"""
+        if sample_limit and sample_limit > 0:
+            q += f" LIMIT {int(sample_limit)}"
+        cur.execute(q)
         rows = cur.fetchall()
+
+        out: List[str] = []
+        for (val,) in rows:
+            # val can be bytes, str, int, float, etc.
+            if isinstance(val, bytes):
+                try:
+                    s = val.decode("utf-8")
+                except UnicodeDecodeError:
+                    try:
+                        s = val.decode("latin-1")
+                    except Exception:
+                        s = val.decode("utf-8", errors="replace")
+                out.append(s)
+            elif isinstance(val, str):
+                out.append(val)
+            else:
+                # Coerce non-strings to str
+                out.append(str(val))
+        return out
     finally:
         con.close()
-    vals: Set[str] = set()
-    for (v,) in rows:
-        sv = _normalize_value(v)
-        if sv is not None:
-            vals.add(sv)
-    return vals
+
 
 def load_column_values_resolved(db_path: str, table_hint: str, column_hint: str, sample_limit: int = 50000) -> Set[str]:
     """
