@@ -1,22 +1,79 @@
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Set
+import re
+
 from joinbench.data.sqlite_utils import load_column_values_resolved
+
+# ---------------- name-sim fallback ----------------
+
+def _norm_ident(s: str) -> str:
+    # match sqlite_utils normalization (lower, non-alnum -> underscore, trim)
+    out = []
+    last_us = False
+    for ch in s.lower():
+        if ch.isalnum():
+            out.append(ch); last_us = False
+        else:
+            if not last_us:
+                out.append("_"); last_us = True
+    while out and out[0] == "_": out.pop(0)
+    while out and out[-1] == "_": out.pop()
+    return "".join(out)
+
+_token_re = re.compile(r"[A-Za-z0-9]+")
+
+def _tokens(s: str) -> Set[str]:
+    return set(m.group(0).lower() for m in _token_re.finditer(s))
+
+def _name_similarity(lt: str, lc: str, rt: str, rc: str) -> float:
+    # column token Jaccard (heavy), table token Jaccard (light)
+    ctok_l, ctok_r = _tokens(lc), _tokens(rc)
+    ttok_l, ttok_r = _tokens(lt), _tokens(rt)
+
+    def jacc(a, b):
+        if not a and not b:
+            return 0.0
+        inter = len(a & b)
+        uni = len(a | b)
+        return inter / uni if uni else 0.0
+
+    col_sim = jacc(ctok_l, ctok_r)
+    tab_sim = jacc(ttok_l, ttok_r)
+
+    # strong exact/normalized equality bonus
+    exact = 1.0 if lc.lower() == rc.lower() or _norm_ident(lc) == _norm_ident(rc) else 0.0
+
+    # weighted blend: prefer column-name agreement
+    return max(exact, 0.85 * col_sim + 0.15 * tab_sim)
+
+# ---------------- main API ----------------
 
 def predict_pair(db_path: str, left_table: str, left_col: str,
                  right_table: str, right_col: str, threshold: float = 0.05) -> Dict:
     """
-    Return {"label": 0/1, "score": float, "explain": str}.
-    Score = Jaccard(A,B) over DISTINCT normalized values.
+    Primary: Jaccard(A,B) on DISTINCT normalized values.
+    Fallback: when either side is too sparse (|A|<3 or |B|<3),
+              use name-similarity to avoid guaranteed FNs on empty tables.
     """
     A = load_column_values_resolved(db_path, left_table, left_col)
     B = load_column_values_resolved(db_path, right_table, right_col)
-    if not A or not B:
-        return {"label": 0, "score": 0.0, "explain": "no values"}
-    inter = len(A & B)
-    uni = len(A | B)
-    j = inter / uni if uni else 0.0
+
+    # If both sides have enough values, use value Jaccard
+    if len(A) >= 3 and len(B) >= 3:
+        inter = len(A & B)
+        uni = len(A | B)
+        j = inter / uni if uni else 0.0
+        return {
+            "label": 1 if j >= threshold else 0,
+            "score": float(j),
+            "explain": f"J={j:.3f} (|∩|={inter}, |∪|={uni})"
+        }
+
+    # Fallback: name similarity (conservative threshold)
+    name_score = _name_similarity(left_table, left_col, right_table, right_col)
+    name_threshold = 0.90  # tuned to keep precision high
     return {
-        "label": 1 if j >= threshold else 0,
-        "score": float(j),
-        "explain": f"J={j:.3f} (|∩|={inter}, |∪|={uni})"
+        "label": 1 if name_score >= name_threshold else 0,
+        "score": float(name_score),
+        "explain": f"name-fallback: {left_table}.{left_col} ~ {right_table}.{right_col} (score={name_score:.3f})"
     }
