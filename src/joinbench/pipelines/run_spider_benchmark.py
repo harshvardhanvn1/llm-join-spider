@@ -2,8 +2,8 @@ from __future__ import annotations
 import json, time
 from pathlib import Path
 import click
-
-from src.joinbench.methods import jaccard_sqlite, containment_sqlite
+from joinbench.methods import llm_spider_gemini
+from joinbench.methods import jaccard_sqlite, containment_sqlite
 
 def _db_file(spider_dir: str, db_id: str) -> str:
     p = Path(spider_dir) / "database" / db_id / f"{db_id}.sqlite"
@@ -29,7 +29,7 @@ def _metrics(y_true, y_pred):
 @click.command()
 @click.option("--spider-dir", required=True, help="Path to Spider root (contains tables.json and database/)")
 @click.option("--pairs", required=True, help="JSONL from build_spider_pairs.py")
-@click.option("--method", type=click.Choice(["jaccard", "containment"]), default="jaccard", show_default=True)
+@click.option("--method", type=click.Choice(["jaccard", "containment", "llm"]), default="jaccard", show_default=True)
 @click.option("--threshold", type=float, default=0.05, show_default=True, help="decision threshold on the score")
 @click.option("--limit", type=int, default=0, show_default=True, help="optional cap on number of pairs for a quick run")
 @click.option("--outdir", type=str, default=None, help="defaults to runs/spider_<method>_<timestamp>")
@@ -42,8 +42,15 @@ def main(spider_dir: str, pairs: str, method: str, threshold: float, limit: int,
     # choose predictor
     if method == "jaccard":
         predict = jaccard_sqlite.predict_pair
-    else:
+    elif method == "containment":
         predict = containment_sqlite.predict_pair
+    elif method == "llm":
+        predict = lambda db, lt, lc, rt, rc, threshold: llm_spider_gemini.predict_pair(
+            db, lt, lc, rt, rc, threshold=threshold
+        )
+    else:
+        raise click.ClickException(f"Unknown method: {method}")
+
 
     # predict per pair
     y_true, y_pred, preds = [], [], []

@@ -9,10 +9,15 @@ src/joinbench.egg-info/top_level.txt
 src/joinbench/data/__init__.py
 src/joinbench/data/spider_fk_pairs.py
 src/joinbench/data/sqlite_utils.py
+src/joinbench/llm/gemini_client.py
 src/joinbench/methods/__init__.py
 src/joinbench/methods/containment_sqlite.py
 src/joinbench/methods/jaccard_sqlite.py
+src/joinbench/methods/llm_spider.py
+src/joinbench/methods/llm_spider_gemini.py
 src/joinbench/pipelines/__init__.py
 src/joinbench/pipelines/build_spider_pairs.py
 src/joinbench/pipelines/failure_report.py
+src/joinbench/pipelines/peek_values.py
+src/joinbench/pipelines/probe_column.py
 src/joinbench/pipelines/run_spider_benchmark.py
