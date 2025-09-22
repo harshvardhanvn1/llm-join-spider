@@ -48,31 +48,35 @@ def _strict_name_fallback(left_table: str, left_col: str,
 
     return 0.0
 
-def predict_pair(db_path: str, left_table: str, left_col: str,
-                 right_table: str, right_col: str, threshold: float = 0.05) -> Dict:
+def predict_pair(db_path: str,
+                 left_table: str, left_col: str,
+                 right_table: str, right_col: str,
+                 threshold: float = 0.05) -> dict:
     """
-    Primary: Jaccard(A,B) on DISTINCT normalized values.
-    STRICT fallback (only when one/both sides are sparse): requires exact
-    column-name equality (case/normalized) or exact acronym-id equality.
+    Value-overlap Jaccard on DISTINCT non-null cell values.
+    Falls back to score=0.0 when either side has no values.
     """
-    A = load_column_values_resolved(db_path, left_table, left_col)
-    B = load_column_values_resolved(db_path, right_table, right_col)
+    from joinbench.data.sqlite_utils import load_column_values_resolved
 
-    # If both sides have enough values, use value Jaccard
-    if len(A) >= 3 and len(B) >= 3:
-        inter = len(A & B)
-        uni = len(A | B)
-        j = inter / uni if uni else 0.0
-        return {
-            "label": 1 if j >= threshold else 0,
-            "score": float(j),
-            "explain": f"J={j:.3f} (|∩|={inter}, |∪|={uni})"
-        }
+    L_vals = load_column_values_resolved(db_path, left_table, left_col)
+    R_vals = load_column_values_resolved(db_path, right_table, right_col)
 
-    # STRICT fallback (no fuzzy matching)
-    s = _strict_name_fallback(left_table, left_col, right_table, right_col)
+    L = set(L_vals)
+    R = set(R_vals)
+
+    if not L or not R:
+        score = 0.0
+        explain = "no values"
+    else:
+        inter = len(L & R)
+        union = len(L | R) or 1
+        score = inter / union
+        explain = f"overlap: |∩|={inter}, |∪|={union}"
+
+    label = 1 if score >= float(threshold) else 0
     return {
-        "label": 1 if s >= 1.0 else 0,
-        "score": float(s),
-        "explain": ("name-fallback: exact-match" if s >= 1.0 else "no values")
+        "label": label,
+        "score": float(score),
+        "explain": explain
     }
+
