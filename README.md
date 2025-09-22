@@ -1,4 +1,4 @@
-# LLM-Join-Spider
+# Leverage LLM for finding potential SQL Joins
 
 Discovering **SQL join keys** automatically on the [Spider](https://yale-lily.github.io/spider) dataset using:
 
