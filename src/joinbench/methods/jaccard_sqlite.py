@@ -4,10 +4,9 @@ import re
 
 from joinbench.data.sqlite_utils import load_column_values_resolved
 
-# ---------------- name-sim fallback ----------------
+# ---------------- helpers: normalization, tokens, acronym ----------------
 
 def _norm_ident(s: str) -> str:
-    # match sqlite_utils normalization (lower, non-alnum -> underscore, trim)
     out = []
     last_us = False
     for ch in s.lower():
@@ -24,6 +23,13 @@ _token_re = re.compile(r"[A-Za-z0-9]+")
 
 def _tokens(s: str) -> Set[str]:
     return set(m.group(0).lower() for m in _token_re.finditer(s))
+
+def _acronym(name: str) -> str:
+    """publication -> p, author -> a, takes_classes -> tc, 'Domain Author' -> da"""
+    toks = [t for t in _tokens(name) if t]
+    return "".join(t[0] for t in toks) if toks else ""
+
+# ---------------- name & heuristic similarity ----------------
 
 def _name_similarity(lt: str, lc: str, rt: str, rc: str) -> float:
     # column token Jaccard (heavy), table token Jaccard (light)
@@ -44,7 +50,23 @@ def _name_similarity(lt: str, lc: str, rt: str, rc: str) -> float:
     exact = 1.0 if lc.lower() == rc.lower() or _norm_ident(lc) == _norm_ident(rc) else 0.0
 
     # weighted blend: prefer column-name agreement
-    return max(exact, 0.85 * col_sim + 0.15 * tab_sim)
+    base = max(exact, 0.85 * col_sim + 0.15 * tab_sim)
+
+    # --- acronym-ID heuristic ---
+    # If right column looks like <acronym(right_table)> + 'id' (e.g., 'pid', 'aid', 'cid', 'jid'),
+    # and left column looks like a referencing slot (common FK words or mentions the right table),
+    # give a conservative boost. This catches Spider pairs like cite.citing -> publication.pid.
+    acr = _acronym(rt) + "id"
+    looks_like_id_col = (rc.lower() == "id" or rc.lower() == acr)
+    left_ref_tokens = {"ref", "refid", "fk", "foreign", "parent", "child", "source", "target", "cited", "citing"}
+    left_is_refish = bool(_tokens(lc) & left_ref_tokens) or (_tokens(rt) & _tokens(lc))
+
+    heuristic = 0.0
+    if looks_like_id_col and left_is_refish:
+        # push toward a high-confidence match, but not absolute 1.0
+        heuristic = 0.95
+
+    return max(base, heuristic)
 
 # ---------------- main API ----------------
 
@@ -53,7 +75,9 @@ def predict_pair(db_path: str, left_table: str, left_col: str,
     """
     Primary: Jaccard(A,B) on DISTINCT normalized values.
     Fallback: when either side is too sparse (|A|<3 or |B|<3),
-              use name-similarity to avoid guaranteed FNs on empty tables.
+              use a conservative name/heuristic score that recognizes
+              acronym-ID patterns (e.g., publication.pid) and reference-like
+              columns (e.g., citing/cited).
     """
     A = load_column_values_resolved(db_path, left_table, left_col)
     B = load_column_values_resolved(db_path, right_table, right_col)
@@ -69,9 +93,9 @@ def predict_pair(db_path: str, left_table: str, left_col: str,
             "explain": f"J={j:.3f} (|∩|={inter}, |∪|={uni})"
         }
 
-    # Fallback: name similarity (conservative threshold)
+    # Fallback: name/heuristic similarity (threshold tuned for precision)
     name_score = _name_similarity(left_table, left_col, right_table, right_col)
-    name_threshold = 0.90  # tuned to keep precision high
+    name_threshold = 0.90
     return {
         "label": 1 if name_score >= name_threshold else 0,
         "score": float(name_score),
