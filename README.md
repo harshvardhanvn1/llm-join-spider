@@ -2,8 +2,8 @@
 
 Discovering **SQL join keys** automatically on the [Spider](https://yale-lily.github.io/spider) dataset using:
 
-- **Value-overlap baselines** — Jaccard and Containment on column **values** (not just headers)
-- **Query-conditioned LLM** — Gemini selects the equality join edges needed to answer a natural-language question
+- **Value-overlap baselines** - Jaccard and Containment on column **values** (not just headers)
+- **Query-conditioned LLM** - Gemini selects the equality join edges needed to answer a natural-language question
 
 This repo provides clean CLIs to:
 
